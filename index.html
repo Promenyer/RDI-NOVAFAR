@@ -7,6 +7,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
   :root{
     --bg: #EEF1EF;
@@ -36,7 +39,6 @@
   .wrap{max-width:1040px; margin:0 auto; padding:28px 20px 140px;}
   .hidden{display:none !important;}
 
-  /* ---------- shared header ---------- */
   header.top{
     display:flex; align-items:flex-end; justify-content:space-between;
     gap:16px; margin-bottom:22px; flex-wrap:wrap;
@@ -68,6 +70,7 @@
   }
   .sync-banner.on{background:rgba(46,110,98,0.08); color:var(--ok); border-color:rgba(46,110,98,0.25);}
   .sync-banner.off{background:rgba(201,127,30,0.08); color:var(--solar-deep); border-color:rgba(201,127,30,0.25);}
+  .sync-banner.loading{background:rgba(87,102,111,0.08); color:var(--ink-soft); border-color:var(--line);}
   .sync-banner .sq{width:6px; height:6px; border-radius:50%; background:currentColor; flex-shrink:0;}
 
   .btn-ghost{
@@ -82,7 +85,6 @@
   }
   .add-item-btn:hover{background:var(--cell-soft);}
 
-  /* ---------- clients screen ---------- */
   .clients-grid{
     display:grid; grid-template-columns:repeat(auto-fill, minmax(240px,1fr)); gap:12px;
   }
@@ -115,7 +117,6 @@
     text-align:center; padding:50px 20px; color:var(--ink-soft); font-size:13.5px;
   }
 
-  /* ---------- project card (editor) ---------- */
   .card{
     background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
     box-shadow:var(--shadow); padding:20px;
@@ -212,6 +213,7 @@
   }
   .upload-option span{font-size:12.5px; font-weight:600; color:var(--ink);}
   .upload-option:hover{background:rgba(240,166,58,0.12);}
+  .upload-option.busy{opacity:0.5; pointer-events:none;}
 
   .photo-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(150px,1fr)); gap:12px;}
   .photo-card{
@@ -257,7 +259,6 @@
 </head>
 <body>
 
-<!-- ============ CLIENTS SCREEN ============ -->
 <div class="wrap" id="clientsScreen">
   <header class="top">
     <div class="brand">
@@ -268,14 +269,13 @@
       </div>
     </div>
   </header>
-  <div class="sync-banner" id="syncBanner"></div>
+  <div class="sync-banner loading" id="syncBanner"><span class="sq"></span> Conectando...</div>
   <div class="items-head">
     <h2>Mis proyectos</h2>
   </div>
   <div class="clients-grid" id="clientsGrid"></div>
 </div>
 
-<!-- ============ EDITOR SCREEN ============ -->
 <div class="wrap hidden" id="editorScreen">
   <div class="back-row">
     <button class="back-btn" id="backBtn">
@@ -378,47 +378,170 @@ const DEFAULT_ITEMS = [
   { code: '10.0', name: 'Sistema de almacenamiento de batería', suggested: 0 }
 ];
 
-/* ================= STORAGE LAYER =================
-   Uses window.storage (persists to your Claude account, works across
-   devices) when available. Falls back to this browser's localStorage
-   (single device only) if the file is opened outside Claude. */
-const HAS_CLOUD = typeof window.storage !== 'undefined' && window.storage !== null;
-const LS_PREFIX = 'sf_';
+/* ================= FIREBASE SETUP ================= */
+const firebaseConfig = {
+  apiKey: "AIzaSyCa1mf4e1sh8RtnaBsGSuXYG8MkxwbRbkM",
+  authDomain: "rdi-novafar.firebaseapp.com",
+  projectId: "rdi-novafar",
+  storageBucket: "rdi-novafar.firebasestorage.app",
+  messagingSenderId: "901966249885",
+  appId: "1:901966249885:web:816c0526887f250c42f974"
+};
 
-async function storageGet(key) {
-  if (HAS_CLOUD) {
-    try { const r = await window.storage.get(key, false); return r ? r.value : null; }
-    catch (e) { return null; }
+let FIREBASE_OK = false;
+let db = null;
+const LS_PREFIX = 'sf_local_';
+
+async function initBackend() {
+  try {
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error('timeout')), 8000);
+      auth.onAuthStateChanged(async (user) => {
+        if (user) { clearTimeout(timeout); resolve(); return; }
+        try { await auth.signInAnonymously(); }
+        catch (e) { clearTimeout(timeout); reject(e); }
+      }, (err) => { clearTimeout(timeout); reject(err); });
+    });
+    db = firebase.firestore();
+    FIREBASE_OK = true;
+  } catch (e) {
+    console.error('Firebase no disponible, usando modo local', e);
+    FIREBASE_OK = false;
   }
-  try { return localStorage.getItem(LS_PREFIX + key); } catch (e) { return null; }
+  setSyncBanner();
 }
-async function storageSet(key, value) {
-  if (HAS_CLOUD) {
-    try { const r = await window.storage.set(key, value, false); return !!r; }
-    catch (e) { console.error('storage.set error', e); return false; }
-  }
-  try { localStorage.setItem(LS_PREFIX + key, value); return true; }
-  catch (e) { console.error('localStorage error', e); return false; }
-}
-async function storageDelete(key) {
-  if (HAS_CLOUD) {
-    try { await window.storage.delete(key, false); } catch (e) {}
+
+function setSyncBanner() {
+  const el = document.getElementById('syncBanner');
+  if (FIREBASE_OK) {
+    el.className = 'sync-banner on';
+    el.innerHTML = '<span class="sq"></span> Conectado — tus proyectos se sincronizan automáticamente entre todos tus dispositivos.';
   } else {
-    try { localStorage.removeItem(LS_PREFIX + key); } catch (e) {}
+    el.className = 'sync-banner off';
+    el.innerHTML = '<span class="sq"></span> Sin conexión a la nube — guardando solo en este dispositivo/navegador por ahora.';
   }
 }
 
-/* ================= CLIENTS INDEX ================= */
-const CLIENTS_KEY = 'clients_index';
+/* ---- Firestore collections (cloud mode) ---- */
+function reportDocRef(clientId) { return db.collection('informes_reports').doc(clientId); }
+function photosColRef(clientId) { return reportDocRef(clientId).collection('photos'); }
+function indexDocRef() { return db.collection('informes_meta').doc('clients_index'); }
 
+/* ================= STORAGE ABSTRACTION ================= */
 async function getClientsIndex() {
-  const raw = await storageGet(CLIENTS_KEY);
-  if (!raw) return [];
-  try { const arr = JSON.parse(raw); return Array.isArray(arr) ? arr : []; }
-  catch (e) { return []; }
+  if (FIREBASE_OK) {
+    try {
+      const snap = await indexDocRef().get();
+      const data = snap.exists ? snap.data() : {};
+      return Array.isArray(data.list) ? data.list : [];
+    } catch (e) { console.error(e); return []; }
+  }
+  try {
+    const raw = localStorage.getItem(LS_PREFIX + 'clients_index');
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) { return []; }
 }
 async function saveClientsIndex(list) {
-  await storageSet(CLIENTS_KEY, JSON.stringify(list));
+  if (FIREBASE_OK) {
+    try { await indexDocRef().set({ list }); return true; }
+    catch (e) { console.error(e); return false; }
+  }
+  try { localStorage.setItem(LS_PREFIX + 'clients_index', JSON.stringify(list)); return true; }
+  catch (e) { return false; }
+}
+
+async function loadReport(clientId) {
+  if (FIREBASE_OK) {
+    try {
+      const [metaSnap, photosSnap] = await Promise.all([
+        reportDocRef(clientId).get(),
+        photosColRef(clientId).get()
+      ]);
+      const meta = metaSnap.exists ? metaSnap.data() : { fields: {}, logo: null, itemsMeta: DEFAULT_ITEMS.map((it,i) => ({ id:'it'+i+'_'+Date.now()+'_'+i, code:it.code, name:it.name, suggested:it.suggested||0 })) };
+      const photos = photosSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const items = (meta.itemsMeta || []).map(im => ({
+        ...im,
+        photos: photos.filter(p => p.itemId === im.id)
+      }));
+      return { fields: meta.fields || {}, logo: meta.logo || null, items, openId: null };
+    } catch (e) {
+      console.error(e);
+      return freshReport();
+    }
+  }
+  try {
+    const raw = localStorage.getItem(LS_PREFIX + 'report_' + clientId);
+    if (!raw) return freshReport();
+    const parsed = JSON.parse(raw);
+    if (!parsed.fields) parsed.fields = {};
+    return parsed;
+  } catch (e) { return freshReport(); }
+}
+
+async function saveReportMeta(clientId, meta) {
+  // meta = { fields, logo, itemsMeta }  -- never includes photo data
+  if (FIREBASE_OK) {
+    try { await reportDocRef(clientId).set(meta, { merge: true }); return true; }
+    catch (e) { console.error(e); return false; }
+  }
+  // local fallback stores the whole report together (fields/logo/items incl. photos)
+  try {
+    const raw = localStorage.getItem(LS_PREFIX + 'report_' + clientId);
+    const current = raw ? JSON.parse(raw) : freshReport();
+    current.fields = meta.fields;
+    current.logo = meta.logo;
+    current.items = meta.itemsMeta.map(im => {
+      const prev = (current.items || []).find(it => it.id === im.id);
+      return { ...im, photos: prev ? prev.photos : [] };
+    });
+    localStorage.setItem(LS_PREFIX + 'report_' + clientId, JSON.stringify(current));
+    return true;
+  } catch (e) { console.error(e); return false; }
+}
+
+async function addPhoto(clientId, itemId, photo) {
+  if (FIREBASE_OK) {
+    try {
+      const ref = await photosColRef(clientId).add({ itemId, ...photo });
+      return ref.id;
+    } catch (e) { console.error(e); return null; }
+  }
+  return 'local_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+}
+async function updatePhotoCaption(clientId, photoId, caption) {
+  if (FIREBASE_OK) {
+    try { await photosColRef(clientId).doc(photoId).update({ caption }); return true; }
+    catch (e) { console.error(e); return false; }
+  }
+  return true; // local mode saved via saveReportLocalFull below
+}
+async function deletePhoto(clientId, photoId) {
+  if (FIREBASE_OK) {
+    try { await photosColRef(clientId).doc(photoId).delete(); return true; }
+    catch (e) { console.error(e); return false; }
+  }
+  return true;
+}
+async function saveReportLocalFull() {
+  // Only used in local fallback mode to persist photo arrays as a whole (captions/deletes)
+  if (FIREBASE_OK || !currentClientId || !report) return;
+  try { localStorage.setItem(LS_PREFIX + 'report_' + currentClientId, JSON.stringify(report)); }
+  catch (e) { console.error(e); }
+}
+async function deleteReport(clientId) {
+  if (FIREBASE_OK) {
+    try {
+      const snap = await photosColRef(clientId).get();
+      const batch = db.batch();
+      snap.docs.forEach(d => batch.delete(d.ref));
+      batch.delete(reportDocRef(clientId));
+      await batch.commit();
+    } catch (e) { console.error(e); }
+  } else {
+    try { localStorage.removeItem(LS_PREFIX + 'report_' + clientId); } catch (e) {}
+  }
 }
 
 function freshReport() {
@@ -438,30 +561,20 @@ function freshReport() {
 
 /* ================= GLOBAL UI STATE ================= */
 let currentClientId = null;
-let report = null; // active report object while editing
+let report = null;
 
 const clientsScreen = document.getElementById('clientsScreen');
 const editorScreen = document.getElementById('editorScreen');
 const actionBar = document.getElementById('actionBar');
 const clientsGrid = document.getElementById('clientsGrid');
-const syncBanner = document.getElementById('syncBanner');
 const panelGrid = document.getElementById('panelGrid');
 const progressText = document.getElementById('progressText');
 const progressDot = document.getElementById('progressDot');
 const statusText = document.getElementById('statusText');
 
-function setSyncBanner() {
-  if (HAS_CLOUD) {
-    syncBanner.className = 'sync-banner on';
-    syncBanner.innerHTML = '<span class="sq"></span> Sincronizado con tu cuenta Claude — abre esta misma herramienta desde Claude en tu celular para continuar donde quedaste.';
-  } else {
-    syncBanner.className = 'sync-banner off';
-    syncBanner.innerHTML = '<span class="sq"></span> Modo local en este navegador (archivo abierto fuera de Claude) — no se sincroniza con otros dispositivos.';
-  }
-}
-
 /* ================= CLIENTS SCREEN ================= */
 async function renderClientsScreen() {
+  clientsGrid.innerHTML = '<div class="empty-state" style="grid-column:1/-1;">Cargando proyectos...</div>';
   const clients = await getClientsIndex();
   clients.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
 
@@ -506,7 +619,7 @@ async function renderClientsScreen() {
     card.querySelector('.client-card-del').onclick = async (e) => {
       e.stopPropagation();
       if (confirm(`¿Eliminar el proyecto "${name}" y todas sus fotos? Esta acción no se puede deshacer.`)) {
-        await storageDelete('report:' + c.id);
+        await deleteReport(c.id);
         const updatedList = (await getClientsIndex()).filter(x => x.id !== c.id);
         await saveClientsIndex(updatedList);
         renderClientsScreen();
@@ -521,6 +634,8 @@ async function createClient() {
   const id = 'client_' + Date.now();
   report = freshReport();
   currentClientId = id;
+  const itemsMeta = report.items.map(it => ({ id: it.id, code: it.code, name: it.name, suggested: it.suggested }));
+  await saveReportMeta(id, { fields: report.fields, logo: report.logo, itemsMeta });
   const index = await getClientsIndex();
   index.push({ id, empresa: '', cliente: '', folio: '', direccion: '', withPhotos: 0, totalItems: report.items.length, updatedAt: Date.now() });
   await saveClientsIndex(index);
@@ -529,9 +644,7 @@ async function createClient() {
 
 async function openClient(id) {
   statusText.textContent = 'Cargando proyecto...';
-  const raw = await storageGet('report:' + id);
-  report = raw ? JSON.parse(raw) : freshReport();
-  if (!report.fields) report.fields = freshReport().fields;
+  report = await loadReport(id);
   currentClientId = id;
   showEditor();
 }
@@ -581,35 +694,39 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-/* ================= AUTOSAVE (per client) ================= */
-let saveTimeout = null;
-function scheduleSave() {
+/* ================= META AUTOSAVE (fields, item names, logo — never photos) ================= */
+let metaSaveTimeout = null;
+function scheduleMetaSave() {
   if (!currentClientId || !report) return;
-  clearTimeout(saveTimeout);
-  saveTimeout = setTimeout(async () => {
-    const ok = await storageSet('report:' + currentClientId, JSON.stringify(report));
-    if (ok) {
-      statusText.textContent = 'Guardado ' + (HAS_CLOUD ? 'en tu cuenta Claude' : 'en este navegador') + ' · ' + new Date().toLocaleTimeString('es-CL');
-      const withPhotos = report.items.filter(it => it.photos.length > 0).length;
-      const index = await getClientsIndex();
-      const idx = index.findIndex(c => c.id === currentClientId);
-      if (idx >= 0) {
-        index[idx] = {
-          ...index[idx],
-          empresa: report.fields.f_empresa,
-          cliente: report.fields.f_cliente,
-          folio: report.fields.f_folio,
-          direccion: report.fields.f_direccion,
-          withPhotos,
-          totalItems: report.items.length,
-          updatedAt: Date.now()
-        };
-        await saveClientsIndex(index);
-      }
-    } else {
-      statusText.textContent = '⚠ No se pudo guardar (espacio lleno o sin conexión). Genera el PDF pronto para no perder avances.';
-    }
-  }, 300);
+  clearTimeout(metaSaveTimeout);
+  metaSaveTimeout = setTimeout(async () => {
+    const itemsMeta = report.items.map(it => ({ id: it.id, code: it.code, name: it.name, suggested: it.suggested }));
+    const ok = await saveReportMeta(currentClientId, { fields: report.fields, logo: report.logo, itemsMeta });
+    await refreshIndexEntry();
+    statusText.textContent = ok
+      ? 'Guardado ' + (FIREBASE_OK ? 'en la nube' : 'en este dispositivo') + ' · ' + new Date().toLocaleTimeString('es-CL')
+      : '⚠ No se pudo guardar. Revisa tu conexión.';
+  }, 400);
+}
+
+async function refreshIndexEntry() {
+  if (!currentClientId || !report) return;
+  const withPhotos = report.items.filter(it => it.photos.length > 0).length;
+  const index = await getClientsIndex();
+  const idx = index.findIndex(c => c.id === currentClientId);
+  if (idx >= 0) {
+    index[idx] = {
+      ...index[idx],
+      empresa: report.fields.f_empresa,
+      cliente: report.fields.f_cliente,
+      folio: report.fields.f_folio,
+      direccion: report.fields.f_direccion,
+      withPhotos,
+      totalItems: report.items.length,
+      updatedAt: Date.now()
+    };
+    await saveClientsIndex(index);
+  }
 }
 
 /* ================= ITEMS RENDER ================= */
@@ -642,9 +759,13 @@ function render() {
       e.stopPropagation();
       if (report.items.length <= 1) { alert('Debe quedar al menos un ítem.'); return; }
       if (confirm(`¿Eliminar el ítem "${item.name}" y sus ${item.photos.length} foto(s)?`)) {
-        report.items = report.items.filter(it => it.id !== item.id);
-        if (report.openId === item.id) report.openId = null;
-        render();
+        (async () => {
+          for (const p of item.photos) { await deletePhoto(currentClientId, p.id); }
+          report.items = report.items.filter(it => it.id !== item.id);
+          if (report.openId === item.id) report.openId = null;
+          scheduleMetaSave();
+          render();
+        })();
       }
     };
     cell.onclick = () => {
@@ -678,7 +799,7 @@ function render() {
       `;
       const nameInput = detail.querySelector('.detail-name-input');
       nameInput.oninput = () => { item.name = nameInput.value; };
-      nameInput.onblur = () => render();
+      nameInput.onblur = () => { scheduleMetaSave(); render(); };
       nameInput.onclick = (e) => e.stopPropagation();
 
       const cameraOption = detail.querySelector('.upload-option[data-action="camera"]');
@@ -688,19 +809,26 @@ function render() {
       cameraOption.onclick = () => cameraInput.click();
       galleryOption.onclick = () => galleryInput.click();
 
-      const processFiles = async (fileList) => {
+      const processFiles = async (fileList, optionEl) => {
         const files = Array.from(fileList);
         if (files.length === 0) return;
+        optionEl.classList.add('busy');
+        statusText.textContent = `Subiendo ${files.length} foto(s)...`;
         for (const file of files) {
           try {
             const { dataUrl, width, height } = await resizeImage(file, 1400, 0.75);
-            item.photos.push({ dataUrl, caption: '', width, height });
+            const photoData = { dataUrl, caption: '', width, height };
+            const id = await addPhoto(currentClientId, item.id, photoData);
+            item.photos.push({ id, itemId: item.id, ...photoData });
           } catch (err) { console.error('Error procesando imagen', err); }
         }
+        if (!FIREBASE_OK) await saveReportLocalFull();
+        await refreshIndexEntry();
+        statusText.textContent = 'Guardado ' + (FIREBASE_OK ? 'en la nube' : 'en este dispositivo') + ' · ' + new Date().toLocaleTimeString('es-CL');
         render();
       };
-      cameraInput.onchange = () => processFiles(cameraInput.files).then(() => { cameraInput.value = ''; });
-      galleryInput.onchange = () => processFiles(galleryInput.files).then(() => { galleryInput.value = ''; });
+      cameraInput.onchange = () => processFiles(cameraInput.files, cameraOption).then(() => { cameraInput.value = ''; });
+      galleryInput.onchange = () => processFiles(galleryInput.files, galleryOption).then(() => { galleryInput.value = ''; });
 
       const photoGrid = detail.querySelector('.photo-grid');
       item.photos.forEach((photo, pIdx) => {
@@ -713,9 +841,20 @@ function render() {
             <button class="photo-card-del">Eliminar</button>
           </div>
         `;
-        card.querySelector('input').oninput = (e) => { photo.caption = e.target.value; };
-        card.querySelector('.photo-card-del').onclick = () => {
+        let captionTimeout = null;
+        card.querySelector('input').oninput = (e) => {
+          photo.caption = e.target.value;
+          clearTimeout(captionTimeout);
+          captionTimeout = setTimeout(async () => {
+            await updatePhotoCaption(currentClientId, photo.id, photo.caption);
+            if (!FIREBASE_OK) await saveReportLocalFull();
+          }, 500);
+        };
+        card.querySelector('.photo-card-del').onclick = async () => {
+          await deletePhoto(currentClientId, photo.id);
           item.photos.splice(pIdx, 1);
+          if (!FIREBASE_OK) await saveReportLocalFull();
+          await refreshIndexEntry();
           render();
         };
         photoGrid.appendChild(card);
@@ -725,7 +864,6 @@ function render() {
     }
   });
   updateProgress();
-  scheduleSave();
 }
 
 /* ================= FIELDS / LOGO ================= */
@@ -745,7 +883,7 @@ FIELD_IDS.forEach(id => {
     if (!report) return;
     if (!report.fields) report.fields = {};
     report.fields[id] = e.target.value;
-    scheduleSave();
+    scheduleMetaSave();
   });
 });
 
@@ -756,13 +894,14 @@ document.getElementById('logoInput').onchange = async (e) => {
   const { dataUrl } = await resizeImage(file, 400, 0.9);
   report.logo = dataUrl;
   document.getElementById('logoPreview').innerHTML = `<img src="${dataUrl}">`;
-  scheduleSave();
+  scheduleMetaSave();
 };
 
 document.getElementById('addItemBtn').onclick = () => {
   const id = 'it_custom_' + Date.now();
   report.items.push({ id, name: 'Nuevo ítem', suggested: 0, photos: [] });
   report.openId = id;
+  scheduleMetaSave();
   render();
 };
 
@@ -934,8 +1073,10 @@ document.getElementById('generateBtn').onclick = async () => {
 };
 
 /* ================= INIT ================= */
-setSyncBanner();
-renderClientsScreen();
+(async () => {
+  await initBackend();
+  renderClientsScreen();
+})();
 </script>
 </body>
 </html>
