@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Informe Fotográfico · Instalación Fotovoltaica</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root{
+    --bg: #EEF1EF;
+    --panel: #FFFFFF;
+    --ink: #16202A;
+    --ink-soft: #57666F;
+    --line: #D9DFDC;
+    --solar: #F0A63A;
+    --solar-deep: #C97F1E;
+    --cell: #1E4A42;
+    --cell-soft: #2E6E62;
+    --danger: #B4483A;
+    --ok: #2E6E62;
+    --radius: 10px;
+    --shadow: 0 1px 2px rgba(22,32,42,0.06), 0 6px 20px rgba(22,32,42,0.06);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:
+      radial-gradient(1200px 500px at 100% -10%, rgba(240,166,58,0.10), transparent 60%),
+      var(--bg);
+    color:var(--ink);
+    font-family:'Inter', sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1040px; margin:0 auto; padding:28px 20px 140px;}
+  .hidden{display:none !important;}
+
+  /* ---------- shared header ---------- */
+  header.top{
+    display:flex; align-items:flex-end; justify-content:space-between;
+    gap:16px; margin-bottom:22px; flex-wrap:wrap;
+  }
+  .brand{display:flex; align-items:center; gap:12px;}
+  .brand-mark{
+    width:38px; height:38px; border-radius:8px;
+    background: linear-gradient(135deg, var(--solar), var(--solar-deep));
+    display:grid; grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr; gap:2px;
+    padding:5px; flex-shrink:0;
+  }
+  .brand-mark span{background:rgba(255,255,255,0.85); border-radius:1px;}
+  .brand h1{
+    font-family:'Space Grotesk', sans-serif; font-size:18px; font-weight:600;
+    margin:0; letter-spacing:-0.01em;
+  }
+  .brand p{margin:2px 0 0; font-size:12.5px; color:var(--ink-soft);}
+  .progress-pill{
+    font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--ink-soft);
+    background:var(--panel); border:1px solid var(--line); border-radius:100px;
+    padding:7px 14px; display:flex; align-items:center; gap:8px; box-shadow:var(--shadow);
+  }
+  .progress-pill .dot{width:7px; height:7px; border-radius:50%; background:var(--line);}
+  .progress-pill .dot.on{background:var(--ok);}
+
+  .sync-banner{
+    font-family:'IBM Plex Mono', monospace; font-size:11.5px; padding:9px 14px; border-radius:8px;
+    margin-bottom:18px; display:flex; align-items:center; gap:8px; border:1px solid var(--line);
+  }
+  .sync-banner.on{background:rgba(46,110,98,0.08); color:var(--ok); border-color:rgba(46,110,98,0.25);}
+  .sync-banner.off{background:rgba(201,127,30,0.08); color:var(--solar-deep); border-color:rgba(201,127,30,0.25);}
+  .sync-banner .sq{width:6px; height:6px; border-radius:50%; background:currentColor; flex-shrink:0;}
+
+  .btn-ghost{
+    font-family:'Inter', sans-serif; font-size:12.5px; font-weight:600; color:var(--ink);
+    background:#FBFBFA; border:1px solid var(--line); border-radius:7px; padding:8px 13px; cursor:pointer;
+  }
+  .btn-ghost:hover{border-color:var(--ink-soft);}
+  .add-item-btn{
+    font-family:'Inter', sans-serif; font-size:12.5px; font-weight:600; color:#fff;
+    background:var(--cell); border:none; border-radius:7px; padding:9px 14px; cursor:pointer;
+    display:flex; align-items:center; gap:6px;
+  }
+  .add-item-btn:hover{background:var(--cell-soft);}
+
+  /* ---------- clients screen ---------- */
+  .clients-grid{
+    display:grid; grid-template-columns:repeat(auto-fill, minmax(240px,1fr)); gap:12px;
+  }
+  .client-card{
+    background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+    box-shadow:var(--shadow); padding:16px; cursor:pointer; position:relative;
+  }
+  .client-card:hover{border-color:var(--solar-deep);}
+  .client-card-top{display:flex; align-items:flex-start; justify-content:space-between; gap:6px;}
+  .client-card-name{font-family:'Space Grotesk', sans-serif; font-weight:600; font-size:14.5px; margin:0 0 3px;}
+  .client-card-sub{font-size:12px; color:var(--ink-soft); margin:0;}
+  .client-card-del{
+    border:none; background:transparent; color:var(--ink-soft); cursor:pointer; font-size:13px;
+    padding:2px 4px; border-radius:4px; flex-shrink:0;
+  }
+  .client-card-del:hover{color:var(--danger); background:rgba(180,72,58,0.08);}
+  .client-card-meta{
+    display:flex; align-items:center; justify-content:space-between; margin-top:14px;
+    font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft);
+  }
+  .client-card-progress{color:var(--ok);}
+  .new-client-card{
+    border:1.5px dashed var(--solar-deep); border-radius:var(--radius); padding:16px;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px;
+    cursor:pointer; color:var(--solar-deep); font-weight:600; font-size:13px; min-height:110px;
+    background:rgba(240,166,58,0.05);
+  }
+  .new-client-card:hover{background:rgba(240,166,58,0.1);}
+  .empty-state{
+    text-align:center; padding:50px 20px; color:var(--ink-soft); font-size:13.5px;
+  }
+
+  /* ---------- project card (editor) ---------- */
+  .card{
+    background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+    box-shadow:var(--shadow); padding:20px;
+  }
+  .section-label{
+    font-family:'IBM Plex Mono', monospace; font-size:11px; letter-spacing:0.08em;
+    text-transform:uppercase; color:var(--solar-deep); margin:0 0 12px;
+  }
+  .grid-fields{
+    display:grid; grid-template-columns:repeat(auto-fit, minmax(180px,1fr)); gap:14px;
+  }
+  .field label{
+    display:block; font-size:11.5px; color:var(--ink-soft); margin-bottom:5px; font-weight:500;
+  }
+  .field input{
+    width:100%; border:1px solid var(--line); border-radius:7px; padding:9px 10px;
+    font-size:13.5px; font-family:'Inter', sans-serif; color:var(--ink); background:#FBFBFA;
+  }
+  .field input:focus{outline:2px solid var(--solar); outline-offset:1px; border-color:transparent;}
+  .logo-row{display:flex; align-items:center; gap:12px; margin-top:14px;}
+  .logo-preview{
+    width:52px; height:52px; border-radius:7px; border:1px dashed var(--line);
+    display:flex; align-items:center; justify-content:center; overflow:hidden; background:#FBFBFA; flex-shrink:0;
+  }
+  .logo-preview img{width:100%; height:100%; object-fit:contain;}
+
+  .back-row{display:flex; align-items:center; gap:10px; margin-bottom:16px;}
+  .back-btn{
+    display:flex; align-items:center; gap:6px; font-size:12.5px; font-weight:600; color:var(--ink-soft);
+    background:none; border:none; cursor:pointer; padding:4px 0;
+  }
+  .back-btn:hover{color:var(--ink);}
+
+  .items-head{
+    display:flex; align-items:center; justify-content:space-between; margin:30px 0 14px;
+  }
+  .items-head h2{
+    font-family:'Space Grotesk', sans-serif; font-size:15px; margin:0; font-weight:600;
+  }
+
+  .panel-grid{
+    display:grid; grid-template-columns:repeat(auto-fill, minmax(230px,1fr)); gap:3px;
+    background:var(--line); border-radius:var(--radius); overflow:hidden; border:1px solid var(--line);
+  }
+  .cell{
+    background:var(--panel); padding:16px; cursor:pointer; transition:background .15s;
+    position:relative; min-height:108px; display:flex; flex-direction:column; justify-content:space-between;
+  }
+  .cell:hover{background:#F7F8F6;}
+  .cell.open{background:#FFFDF7; box-shadow:inset 0 0 0 2px var(--solar);}
+  .cell-top{display:flex; align-items:flex-start; justify-content:space-between; gap:6px;}
+  .cell-index{font-family:'IBM Plex Mono', monospace; font-size:10.5px; color:var(--ink-soft);}
+  .cell-remove{
+    border:none; background:transparent; color:var(--ink-soft); cursor:pointer; font-size:13px;
+    line-height:1; padding:2px 4px; border-radius:4px; visibility:hidden;
+  }
+  .cell:hover .cell-remove{visibility:visible;}
+  .cell-remove:hover{color:var(--danger); background:rgba(180,72,58,0.08);}
+  .cell-name{
+    font-family:'Inter', sans-serif; font-size:13.5px; font-weight:600; color:var(--ink);
+    margin-top:8px; line-height:1.3;
+  }
+  .cell-bottom{display:flex; align-items:center; justify-content:space-between; margin-top:12px;}
+  .cell-count{
+    font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ok); display:flex; align-items:center; gap:5px;
+  }
+  .cell-count.zero{color:var(--ink-soft);}
+  .cell-count .sq{width:7px; height:7px; border-radius:2px; background:currentColor;}
+  .cell-thumbs{display:flex; margin-left:auto;}
+  .cell-thumbs img{
+    width:20px; height:20px; object-fit:cover; border-radius:4px; border:1.5px solid var(--panel);
+    margin-left:-7px; box-shadow:0 0 0 1px var(--line);
+  }
+
+  .detail{
+    grid-column:1 / -1; background:#FFFDF7; border-top:1px solid var(--line);
+    padding:20px; animation:open .18s ease;
+  }
+  @keyframes open{from{opacity:0; transform:translateY(-4px);} to{opacity:1; transform:translateY(0);}}
+  .detail-head{display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap;}
+  .detail-name-input{
+    font-family:'Space Grotesk', sans-serif; font-size:16px; font-weight:600; border:none; background:transparent;
+    color:var(--ink); padding:2px 4px; border-radius:5px; flex:1; min-width:160px;
+  }
+  .detail-name-input:focus{outline:2px solid var(--solar);}
+
+  .upload-options{
+    display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px;
+  }
+  .upload-option{
+    border:1.5px dashed var(--solar-deep); border-radius:8px; padding:16px 10px; text-align:center;
+    background:rgba(240,166,58,0.06); cursor:pointer; color:var(--solar-deep);
+    display:flex; flex-direction:column; align-items:center; gap:6px; transition:background .12s, opacity .12s;
+  }
+  .upload-option span{font-size:12.5px; font-weight:600; color:var(--ink);}
+  .upload-option:hover{background:rgba(240,166,58,0.12);}
+
+  .photo-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(150px,1fr)); gap:12px;}
+  .photo-card{
+    background:var(--panel); border:1px solid var(--line); border-radius:8px; overflow:hidden;
+  }
+  .photo-card img{width:100%; height:110px; object-fit:cover; display:block;}
+  .photo-card-body{padding:8px;}
+  .photo-card input{
+    width:100%; border:none; border-top:1px solid var(--line); font-size:11.5px; padding:6px 2px 2px;
+    font-family:'Inter', sans-serif; color:var(--ink-soft); background:transparent;
+  }
+  .photo-card input:focus{outline:none; color:var(--ink);}
+  .photo-card-del{
+    width:100%; border:none; background:transparent; color:var(--danger); font-size:10.5px;
+    padding:4px 0 0; cursor:pointer; text-align:right; font-family:'IBM Plex Mono',monospace;
+  }
+
+  .action-bar{
+    position:fixed; bottom:0; left:0; right:0; background:rgba(238,241,239,0.9);
+    backdrop-filter:blur(8px); border-top:1px solid var(--line); padding:14px 20px;
+    display:flex; justify-content:center; z-index:50;
+  }
+  .action-inner{
+    max-width:1040px; width:100%; display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;
+  }
+  .status-text{font-size:12px; color:var(--ink-soft); font-family:'IBM Plex Mono', monospace;}
+  .generate-btn{
+    font-family:'Space Grotesk', sans-serif; font-weight:600; font-size:14.5px; color:#16200F;
+    background:linear-gradient(135deg, #F7C168, var(--solar)); border:none; border-radius:8px;
+    padding:13px 26px; cursor:pointer; box-shadow:0 4px 14px rgba(240,166,58,0.35);
+    display:flex; align-items:center; gap:8px;
+  }
+  .generate-btn:disabled{opacity:0.55; cursor:wait;}
+  .generate-btn:hover:not(:disabled){filter:brightness(1.04);}
+
+  input[type=file]{display:none;}
+
+  @media (max-width:560px){
+    .action-inner{flex-direction:column; align-items:stretch;}
+    .generate-btn{justify-content:center;}
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ CLIENTS SCREEN ============ -->
+<div class="wrap" id="clientsScreen">
+  <header class="top">
+    <div class="brand">
+      <div class="brand-mark"><span></span><span></span><span></span><span></span></div>
+      <div>
+        <h1>Informes Fotográficos</h1>
+        <p>Selecciona un proyecto para continuar o crea uno nuevo</p>
+      </div>
+    </div>
+  </header>
+  <div class="sync-banner" id="syncBanner"></div>
+  <div class="items-head">
+    <h2>Mis proyectos</h2>
+  </div>
+  <div class="clients-grid" id="clientsGrid"></div>
+</div>
+
+<!-- ============ EDITOR SCREEN ============ -->
+<div class="wrap hidden" id="editorScreen">
+  <div class="back-row">
+    <button class="back-btn" id="backBtn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      Volver a mis proyectos
+    </button>
+  </div>
+  <header class="top">
+    <div class="brand">
+      <div class="brand-mark"><span></span><span></span><span></span><span></span></div>
+      <div>
+        <h1>Informe Fotográfico de Instalación</h1>
+        <p>Registro fotográfico por ítem · genera el PDF de respaldo al finalizar</p>
+      </div>
+    </div>
+    <div class="progress-pill" id="progressPill">
+      <span class="dot" id="progressDot"></span>
+      <span id="progressText">0 / 0 ítems con fotos</span>
+    </div>
+  </header>
+
+  <section class="card">
+    <p class="section-label">Datos del proyecto</p>
+    <div class="grid-fields">
+      <div class="field"><label>Empresa instaladora</label><input id="f_empresa" placeholder="Ej: SolarTech SpA"></div>
+      <div class="field"><label>Cliente</label><input id="f_cliente" placeholder="Nombre del cliente"></div>
+      <div class="field"><label>Dirección de instalación</label><input id="f_direccion" placeholder="Calle, comuna, ciudad"></div>
+      <div class="field"><label>Técnico responsable</label><input id="f_tecnico" placeholder="Nombre del técnico"></div>
+      <div class="field"><label>Folio / N° de proyecto</label><input id="f_folio" placeholder="Ej: INST-0142"></div>
+      <div class="field"><label>Fecha de instalación</label><input id="f_fecha" type="date"></div>
+    </div>
+    <div class="logo-row">
+      <div class="logo-preview" id="logoPreview">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9AA6A0" stroke-width="1.6"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+      </div>
+      <button class="btn-ghost" id="logoBtn">Subir logo (opcional)</button>
+      <input type="file" id="logoInput" accept="image/*">
+    </div>
+  </section>
+
+  <div class="items-head">
+    <h2>Ítems de la instalación</h2>
+    <button class="add-item-btn" id="addItemBtn">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Agregar ítem
+    </button>
+  </div>
+
+  <div class="panel-grid" id="panelGrid"></div>
+</div>
+
+<div class="action-bar hidden" id="actionBar">
+  <div class="action-inner">
+    <span class="status-text" id="statusText">—</span>
+    <button class="generate-btn" id="generateBtn">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#16200F" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      Generar PDF del informe
+    </button>
+  </div>
+</div>
+
+<script>
+/* ================= CHECKLIST BASE ================= */
+const DEFAULT_ITEMS = [
+  { code: '1.0',  name: 'Frontis de la casa con numeración', suggested: 2 },
+  { code: '2.0',  name: 'Frontis de los paneles (bancadas completas)', suggested: 1 },
+  { code: '2.1',  name: 'Aterrizaje entre paneles y estructura', suggested: 1 },
+  { code: '2.2',  name: 'Aterrizaje entre panel y panel', suggested: 1 },
+  { code: '2.3',  name: 'Aterrizaje entre estructura y caja metálica', suggested: 1 },
+  { code: '2.4',  name: 'Aterrizaje a tierra en cajas metálicas', suggested: 6 },
+  { code: '2.5',  name: 'Señalética de los paneles en techumbre', suggested: 1 },
+  { code: '2.6',  name: 'Etiqueta de paneles', suggested: 1 },
+  { code: '2.7',  name: 'Orden cableado, conectores MC4 debajo de los paneles (en todas las bancadas)', suggested: 7 },
+  { code: '3.0',  name: 'Señalética cajas metálicas bajo módulos', suggested: 6 },
+  { code: '3.1',  name: 'Recorrido tubería CC hacia inversor', suggested: 11 },
+  { code: '4.0',  name: 'Recorrido tubería INV-NTGFV', suggested: 8 },
+  { code: '4.1',  name: 'Recorrido NTGFV a empalme', suggested: 2 },
+  { code: '4.2',  name: 'Recorrido NTGFV a TDA', suggested: 2 },
+  { code: '5.0',  name: 'Inversor lejos, cerca y altura', suggested: 2 },
+  { code: '5.1',  name: 'String inversor', suggested: 1 },
+  { code: '5.2',  name: 'Apagado del inversor', suggested: 2 },
+  { code: '5.3',  name: 'N° de serie del inversor y ficha técnica (pantalla y del costado)', suggested: 1 },
+  { code: '5.4',  name: 'Perfil de red inversor', suggested: 3 },
+  { code: '5.5',  name: 'Medición de resistencia de aislamiento', suggested: 4 },
+  { code: '6.0',  name: 'Ubicación NTGFV lejos, cerca y altura', suggested: 3 },
+  { code: '6.1',  name: 'Tapa del NTGFV con todas sus señaléticas (ficha técnica UG, ficha resumida, peligro)', suggested: 1 },
+  { code: '6.2',  name: 'Contratapa NTGFV (protecciones, nomenclatura, aterrizaje si corresponde)', suggested: 3 },
+  { code: '6.3',  name: 'Zoom de las protecciones y conexionado interno NTGFV', suggested: 6 },
+  { code: '6.4',  name: 'Punto de inyección de sistema de generación', suggested: 1 },
+  { code: '7.0',  name: 'Valor de resistencia de puesta a tierra', suggested: 1 },
+  { code: '7.1',  name: 'Nueva o existente cámara de registro (tapada y sin tapa)', suggested: 0 },
+  { code: '7.2',  name: 'Canalización puesta a tierra', suggested: 0 },
+  { code: '8.0',  name: 'Medidor con su señalética de precaución', suggested: 3 },
+  { code: '8.1',  name: 'Automático del empalme', suggested: 1 },
+  { code: '9.0',  name: 'Ubicación TDA lejos y cerca', suggested: 2 },
+  { code: '9.1',  name: 'Tapa TDA', suggested: 1 },
+  { code: '9.2',  name: 'Contratapa TDA', suggested: 1 },
+  { code: '9.3',  name: 'Zoom protecciones y conexionado interno TDA', suggested: 2 },
+  { code: '9.4',  name: 'Unilineal TDA', suggested: 1 },
+  { code: '10.0', name: 'Sistema de almacenamiento de batería', suggested: 0 }
+];
+
+/* ================= STORAGE LAYER =================
+   Uses window.storage (persists to your Claude account, works across
+   devices) when available. Falls back to this browser's localStorage
+   (single device only) if the file is opened outside Claude. */
+const HAS_CLOUD = typeof window.storage !== 'undefined' && window.storage !== null;
+const LS_PREFIX = 'sf_';
+
+async function storageGet(key) {
+  if (HAS_CLOUD) {
+    try { const r = await window.storage.get(key, false); return r ? r.value : null; }
+    catch (e) { return null; }
+  }
+  try { return localStorage.getItem(LS_PREFIX + key); } catch (e) { return null; }
+}
+async function storageSet(key, value) {
+  if (HAS_CLOUD) {
+    try { const r = await window.storage.set(key, value, false); return !!r; }
+    catch (e) { console.error('storage.set error', e); return false; }
+  }
+  try { localStorage.setItem(LS_PREFIX + key, value); return true; }
+  catch (e) { console.error('localStorage error', e); return false; }
+}
+async function storageDelete(key) {
+  if (HAS_CLOUD) {
+    try { await window.storage.delete(key, false); } catch (e) {}
+  } else {
+    try { localStorage.removeItem(LS_PREFIX + key); } catch (e) {}
+  }
+}
+
+/* ================= CLIENTS INDEX ================= */
+const CLIENTS_KEY = 'clients_index';
+
+async function getClientsIndex() {
+  const raw = await storageGet(CLIENTS_KEY);
+  if (!raw) return [];
+  try { const arr = JSON.parse(raw); return Array.isArray(arr) ? arr : []; }
+  catch (e) { return []; }
+}
+async function saveClientsIndex(list) {
+  await storageSet(CLIENTS_KEY, JSON.stringify(list));
+}
+
+function freshReport() {
+  return {
+    logo: null,
+    fields: { f_empresa: '', f_cliente: '', f_direccion: '', f_tecnico: '', f_folio: '', f_fecha: '' },
+    items: DEFAULT_ITEMS.map((it, i) => ({
+      id: 'it' + i + '_' + Date.now() + '_' + i,
+      code: it.code,
+      name: it.name,
+      suggested: it.suggested || 0,
+      photos: []
+    })),
+    openId: null
+  };
+}
+
+/* ================= GLOBAL UI STATE ================= */
+let currentClientId = null;
+let report = null; // active report object while editing
+
+const clientsScreen = document.getElementById('clientsScreen');
+const editorScreen = document.getElementById('editorScreen');
+const actionBar = document.getElementById('actionBar');
+const clientsGrid = document.getElementById('clientsGrid');
+const syncBanner = document.getElementById('syncBanner');
+const panelGrid = document.getElementById('panelGrid');
+const progressText = document.getElementById('progressText');
+const progressDot = document.getElementById('progressDot');
+const statusText = document.getElementById('statusText');
+
+function setSyncBanner() {
+  if (HAS_CLOUD) {
+    syncBanner.className = 'sync-banner on';
+    syncBanner.innerHTML = '<span class="sq"></span> Sincronizado con tu cuenta Claude — abre esta misma herramienta desde Claude en tu celular para continuar donde quedaste.';
+  } else {
+    syncBanner.className = 'sync-banner off';
+    syncBanner.innerHTML = '<span class="sq"></span> Modo local en este navegador (archivo abierto fuera de Claude) — no se sincroniza con otros dispositivos.';
+  }
+}
+
+/* ================= CLIENTS SCREEN ================= */
+async function renderClientsScreen() {
+  const clients = await getClientsIndex();
+  clients.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+
+  clientsGrid.innerHTML = '';
+
+  const newCard = document.createElement('div');
+  newCard.className = 'new-client-card';
+  newCard.innerHTML = `
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    <span>Nuevo proyecto</span>
+  `;
+  newCard.onclick = () => createClient();
+  clientsGrid.appendChild(newCard);
+
+  if (clients.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'empty-state';
+    empty.style.gridColumn = '1 / -1';
+    empty.textContent = 'Aún no tienes proyectos guardados. Crea el primero con el botón de arriba.';
+    clientsGrid.appendChild(empty);
+    return;
+  }
+
+  clients.forEach(c => {
+    const card = document.createElement('div');
+    card.className = 'client-card';
+    const name = c.empresa || c.cliente ? [c.cliente, c.empresa].filter(Boolean).join(' · ') : 'Proyecto sin nombre';
+    const updated = c.updatedAt ? new Date(c.updatedAt).toLocaleString('es-CL', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '';
+    card.innerHTML = `
+      <div class="client-card-top">
+        <div>
+          <p class="client-card-name">${escapeHtml(name)}</p>
+          <p class="client-card-sub">${escapeHtml(c.folio || 'Sin folio')} ${c.direccion ? '· ' + escapeHtml(c.direccion) : ''}</p>
+        </div>
+        <button class="client-card-del" title="Eliminar proyecto">✕</button>
+      </div>
+      <div class="client-card-meta">
+        <span class="client-card-progress">${c.withPhotos || 0}/${c.totalItems || 0} ítems</span>
+        <span>${updated}</span>
+      </div>
+    `;
+    card.querySelector('.client-card-del').onclick = async (e) => {
+      e.stopPropagation();
+      if (confirm(`¿Eliminar el proyecto "${name}" y todas sus fotos? Esta acción no se puede deshacer.`)) {
+        await storageDelete('report:' + c.id);
+        const updatedList = (await getClientsIndex()).filter(x => x.id !== c.id);
+        await saveClientsIndex(updatedList);
+        renderClientsScreen();
+      }
+    };
+    card.onclick = () => openClient(c.id);
+    clientsGrid.appendChild(card);
+  });
+}
+
+async function createClient() {
+  const id = 'client_' + Date.now();
+  report = freshReport();
+  currentClientId = id;
+  const index = await getClientsIndex();
+  index.push({ id, empresa: '', cliente: '', folio: '', direccion: '', withPhotos: 0, totalItems: report.items.length, updatedAt: Date.now() });
+  await saveClientsIndex(index);
+  showEditor();
+}
+
+async function openClient(id) {
+  statusText.textContent = 'Cargando proyecto...';
+  const raw = await storageGet('report:' + id);
+  report = raw ? JSON.parse(raw) : freshReport();
+  if (!report.fields) report.fields = freshReport().fields;
+  currentClientId = id;
+  showEditor();
+}
+
+function showEditor() {
+  clientsScreen.classList.add('hidden');
+  editorScreen.classList.remove('hidden');
+  actionBar.classList.remove('hidden');
+  restoreFieldsAndLogo();
+  render();
+}
+
+document.getElementById('backBtn').onclick = () => {
+  editorScreen.classList.add('hidden');
+  actionBar.classList.add('hidden');
+  clientsScreen.classList.remove('hidden');
+  currentClientId = null;
+  report = null;
+  renderClientsScreen();
+};
+
+/* ================= IMAGE HELPERS ================= */
+function resizeImage(file, maxDim, quality) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > height && width > maxDim) { height *= maxDim / width; width = maxDim; }
+        else if (height > maxDim) { width *= maxDim / height; height = maxDim; }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve({ dataUrl: canvas.toDataURL('image/jpeg', quality), width, height });
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str || '';
+  return div.innerHTML;
+}
+
+/* ================= AUTOSAVE (per client) ================= */
+let saveTimeout = null;
+function scheduleSave() {
+  if (!currentClientId || !report) return;
+  clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(async () => {
+    const ok = await storageSet('report:' + currentClientId, JSON.stringify(report));
+    if (ok) {
+      statusText.textContent = 'Guardado ' + (HAS_CLOUD ? 'en tu cuenta Claude' : 'en este navegador') + ' · ' + new Date().toLocaleTimeString('es-CL');
+      const withPhotos = report.items.filter(it => it.photos.length > 0).length;
+      const index = await getClientsIndex();
+      const idx = index.findIndex(c => c.id === currentClientId);
+      if (idx >= 0) {
+        index[idx] = {
+          ...index[idx],
+          empresa: report.fields.f_empresa,
+          cliente: report.fields.f_cliente,
+          folio: report.fields.f_folio,
+          direccion: report.fields.f_direccion,
+          withPhotos,
+          totalItems: report.items.length,
+          updatedAt: Date.now()
+        };
+        await saveClientsIndex(index);
+      }
+    } else {
+      statusText.textContent = '⚠ No se pudo guardar (espacio lleno o sin conexión). Genera el PDF pronto para no perder avances.';
+    }
+  }, 300);
+}
+
+/* ================= ITEMS RENDER ================= */
+function updateProgress() {
+  const total = report.items.length;
+  const withPhotos = report.items.filter(it => it.photos.length > 0).length;
+  progressText.textContent = `${withPhotos} / ${total} ítems con fotos`;
+  progressDot.classList.toggle('on', withPhotos === total && total > 0);
+}
+
+function render() {
+  panelGrid.innerHTML = '';
+  report.items.forEach((item, idx) => {
+    const cell = document.createElement('div');
+    cell.className = 'cell' + (report.openId === item.id ? ' open' : '');
+    cell.innerHTML = `
+      <div>
+        <div class="cell-top">
+          <span class="cell-index">ÍTEM ${escapeHtml(item.code || String(idx + 1))}</span>
+          <button class="cell-remove" title="Eliminar ítem">✕</button>
+        </div>
+        <div class="cell-name">${escapeHtml(item.name)}</div>
+      </div>
+      <div class="cell-bottom">
+        <span class="cell-count ${item.photos.length === 0 ? 'zero' : ''}"><span class="sq"></span>${item.photos.length} foto${item.photos.length===1?'':'s'}${item.suggested ? ` <span style="opacity:.65">/ sugerido ${item.suggested}</span>` : ''}</span>
+        <div class="cell-thumbs">${item.photos.slice(-3).map(p => `<img src="${p.dataUrl}">`).join('')}</div>
+      </div>
+    `;
+    cell.querySelector('.cell-remove').onclick = (e) => {
+      e.stopPropagation();
+      if (report.items.length <= 1) { alert('Debe quedar al menos un ítem.'); return; }
+      if (confirm(`¿Eliminar el ítem "${item.name}" y sus ${item.photos.length} foto(s)?`)) {
+        report.items = report.items.filter(it => it.id !== item.id);
+        if (report.openId === item.id) report.openId = null;
+        render();
+      }
+    };
+    cell.onclick = () => {
+      report.openId = report.openId === item.id ? null : item.id;
+      render();
+    };
+    panelGrid.appendChild(cell);
+
+    if (report.openId === item.id) {
+      const detail = document.createElement('div');
+      detail.className = 'detail';
+      detail.onclick = (e) => e.stopPropagation();
+      detail.innerHTML = `
+        <div class="detail-head">
+          <span class="cell-index" style="flex-shrink:0;">ÍTEM ${escapeHtml(item.code || String(idx + 1))}</span>
+          <input class="detail-name-input" value="${escapeHtml(item.name)}">
+        </div>
+        <div class="upload-options">
+          <div class="upload-option" data-action="camera">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            <span>Tomar foto</span>
+          </div>
+          <div class="upload-option" data-action="gallery">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+            <span>Elegir de galería</span>
+          </div>
+        </div>
+        <input type="file" accept="image/*" capture="environment" class="cameraInput">
+        <input type="file" accept="image/*" multiple class="galleryInput">
+        <div class="photo-grid"></div>
+      `;
+      const nameInput = detail.querySelector('.detail-name-input');
+      nameInput.oninput = () => { item.name = nameInput.value; };
+      nameInput.onblur = () => render();
+      nameInput.onclick = (e) => e.stopPropagation();
+
+      const cameraOption = detail.querySelector('.upload-option[data-action="camera"]');
+      const galleryOption = detail.querySelector('.upload-option[data-action="gallery"]');
+      const cameraInput = detail.querySelector('.cameraInput');
+      const galleryInput = detail.querySelector('.galleryInput');
+      cameraOption.onclick = () => cameraInput.click();
+      galleryOption.onclick = () => galleryInput.click();
+
+      const processFiles = async (fileList) => {
+        const files = Array.from(fileList);
+        if (files.length === 0) return;
+        for (const file of files) {
+          try {
+            const { dataUrl, width, height } = await resizeImage(file, 1400, 0.75);
+            item.photos.push({ dataUrl, caption: '', width, height });
+          } catch (err) { console.error('Error procesando imagen', err); }
+        }
+        render();
+      };
+      cameraInput.onchange = () => processFiles(cameraInput.files).then(() => { cameraInput.value = ''; });
+      galleryInput.onchange = () => processFiles(galleryInput.files).then(() => { galleryInput.value = ''; });
+
+      const photoGrid = detail.querySelector('.photo-grid');
+      item.photos.forEach((photo, pIdx) => {
+        const card = document.createElement('div');
+        card.className = 'photo-card';
+        card.innerHTML = `
+          <img src="${photo.dataUrl}">
+          <div class="photo-card-body">
+            <input placeholder="Comentario (opcional)" value="${escapeHtml(photo.caption)}">
+            <button class="photo-card-del">Eliminar</button>
+          </div>
+        `;
+        card.querySelector('input').oninput = (e) => { photo.caption = e.target.value; };
+        card.querySelector('.photo-card-del').onclick = () => {
+          item.photos.splice(pIdx, 1);
+          render();
+        };
+        photoGrid.appendChild(card);
+      });
+
+      panelGrid.appendChild(detail);
+    }
+  });
+  updateProgress();
+  scheduleSave();
+}
+
+/* ================= FIELDS / LOGO ================= */
+const FIELD_IDS = ['f_empresa', 'f_cliente', 'f_direccion', 'f_tecnico', 'f_folio', 'f_fecha'];
+function restoreFieldsAndLogo() {
+  FIELD_IDS.forEach(id => {
+    const el = document.getElementById(id);
+    el.value = (report.fields && report.fields[id]) || '';
+  });
+  const logoPreview = document.getElementById('logoPreview');
+  logoPreview.innerHTML = report.logo
+    ? `<img src="${report.logo}">`
+    : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9AA6A0" stroke-width="1.6"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>`;
+}
+FIELD_IDS.forEach(id => {
+  document.getElementById(id).addEventListener('input', (e) => {
+    if (!report) return;
+    if (!report.fields) report.fields = {};
+    report.fields[id] = e.target.value;
+    scheduleSave();
+  });
+});
+
+document.getElementById('logoBtn').onclick = () => document.getElementById('logoInput').click();
+document.getElementById('logoInput').onchange = async (e) => {
+  const file = e.target.files[0];
+  if (!file || !report) return;
+  const { dataUrl } = await resizeImage(file, 400, 0.9);
+  report.logo = dataUrl;
+  document.getElementById('logoPreview').innerHTML = `<img src="${dataUrl}">`;
+  scheduleSave();
+};
+
+document.getElementById('addItemBtn').onclick = () => {
+  const id = 'it_custom_' + Date.now();
+  report.items.push({ id, name: 'Nuevo ítem', suggested: 0, photos: [] });
+  report.openId = id;
+  render();
+};
+
+/* ================= PDF GENERATION ================= */
+document.getElementById('generateBtn').onclick = async () => {
+  const btn = document.getElementById('generateBtn');
+  const itemsWithPhotos = report.items.filter(it => it.photos.length > 0);
+  if (itemsWithPhotos.length === 0) {
+    alert('Sube al menos una foto en algún ítem antes de generar el PDF.');
+    return;
+  }
+  btn.disabled = true;
+  const originalLabel = btn.innerHTML;
+  btn.innerHTML = 'Generando PDF...';
+  statusText.textContent = 'Componiendo el informe, esto puede tardar unos segundos...';
+
+  try {
+    const pdfSafe = (str) => (str || '')
+      .toString()
+      .replace(/→|➜|➔/g, '-')
+      .replace(/[–—]/g, '-')
+      .replace(/['']/g, "'")
+      .replace(/[""]/g, '"')
+      .replace(/[^\x00-\xFF]/g, '');
+
+    const fitContain = (imgW, imgH, boxW, boxH) => {
+      if (!imgW || !imgH) return { w: boxW, h: boxH, ox: 0, oy: 0 };
+      const scale = Math.min(boxW / imgW, boxH / imgH);
+      const w = imgW * scale, h = imgH * scale;
+      return { w, h, ox: (boxW - w) / 2, oy: (boxH - h) / 2 };
+    };
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'pt', format: 'a4', orientation: 'landscape' });
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const margin = 46;
+    const gray = [130, 130, 130];
+    const dark = [25, 25, 25];
+    const line = [210, 210, 210];
+
+    const empresa = pdfSafe(report.fields.f_empresa) || 'Empresa instaladora';
+    const cliente = pdfSafe(report.fields.f_cliente) || '-';
+    const direccion = pdfSafe(report.fields.f_direccion) || '-';
+    const tecnico = pdfSafe(report.fields.f_tecnico) || '-';
+    const folio = pdfSafe(report.fields.f_folio) || '-';
+    const fechaRaw = report.fields.f_fecha;
+    const fecha = fechaRaw ? new Date(fechaRaw + 'T00:00:00').toLocaleDateString('es-CL', { year: 'numeric', month: 'long', day: 'numeric' }) : '-';
+
+    if (report.logo) {
+      try { doc.addImage(report.logo, 'JPEG', pageW - margin - 64, margin, 64, 64); } catch (e) {}
+    }
+    doc.setTextColor(...gray);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.text(empresa.toUpperCase(), margin, margin + 4);
+
+    doc.setTextColor(...dark);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(24);
+    doc.text('Informe Fotografico de Instalacion Fotovoltaica', margin, margin + 42, { maxWidth: pageW - margin * 2 - 80 });
+
+    doc.setDrawColor(...line);
+    doc.line(margin, margin + 66, pageW - margin, margin + 66);
+
+    let y = margin + 100;
+    const fields = [
+      ['Cliente', cliente],
+      ['Direccion de instalacion', direccion],
+      ['Tecnico responsable', tecnico],
+      ['Folio / N. de proyecto', folio],
+      ['Fecha de instalacion', fecha],
+      ['Items certificados', `${itemsWithPhotos.length} de ${report.items.length}`],
+      ['Total de fotografias', `${itemsWithPhotos.reduce((a, it) => a + it.photos.length, 0)}`]
+    ];
+    doc.setFontSize(11);
+    fields.forEach(([label, value]) => {
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...gray);
+      doc.text(label, margin, y);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...dark);
+      doc.text(String(value), margin + 190, y);
+      y += 22;
+    });
+
+    doc.setDrawColor(...line);
+    doc.line(margin, pageH - 56, pageW - margin, pageH - 56);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(...gray);
+    doc.text('Documento generado como respaldo fotografico de la instalacion realizada.', margin, pageH - 40);
+
+    const cols = 3;
+    const colGap = 16;
+    const colW = (pageW - margin * 2 - colGap * (cols - 1)) / cols;
+    const boxH = colW * 0.7;
+    const captionH = 16;
+    const cardPad = 8;
+
+    itemsWithPhotos.forEach((item, itemIdx) => {
+      doc.addPage();
+      const title = pdfSafe(item.name) || 'Item';
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(...gray);
+      doc.text(`ITEM ${pdfSafe(item.code) || String(itemIdx + 1)}`, margin, margin - 10);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(15);
+      doc.setTextColor(...dark);
+      doc.text(title, margin, margin + 12, { maxWidth: pageW - margin * 2 });
+
+      doc.setDrawColor(...line);
+      doc.line(margin, margin + 22, pageW - margin, margin + 22);
+
+      let cy = margin + 44;
+      let col = 0;
+
+      item.photos.forEach((photo) => {
+        const x = margin + col * (colW + colGap);
+        if (cy + boxH + captionH + cardPad * 2 > pageH - margin) {
+          doc.addPage();
+          cy = margin;
+          col = 0;
+        }
+        doc.setDrawColor(...line);
+        doc.roundedRect(x, cy, colW, boxH + captionH + cardPad * 2, 3, 3, 'S');
+        try {
+          const area = fitContain(photo.width, photo.height, colW - cardPad * 2, boxH - cardPad);
+          doc.addImage(photo.dataUrl, 'JPEG', x + cardPad + area.ox, cy + cardPad + area.oy, area.w, area.h, undefined, 'FAST');
+        } catch (e) {}
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(...gray);
+        const capText = pdfSafe(photo.caption);
+        const capLines = doc.splitTextToSize(capText, colW - cardPad * 2);
+        if (capLines[0]) doc.text(capLines[0], x + cardPad, cy + boxH + cardPad + 11);
+
+        col++;
+        if (col >= cols) {
+          col = 0;
+          cy += boxH + captionH + cardPad * 2 + colGap;
+        }
+      });
+    });
+
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 2; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(...gray);
+      doc.text(`${folio} - pagina ${i - 1} de ${pageCount - 1}`, pageW - margin, pageH - 20, { align: 'right' });
+    }
+
+    const safeName = (empresa + '_' + (folio || 'informe')).replace(/[^a-zA-Z0-9_-]/g, '_');
+    doc.save(`informe_fotografico_${safeName}.pdf`);
+    statusText.textContent = 'PDF generado y descargado correctamente.';
+  } catch (err) {
+    console.error(err);
+    statusText.textContent = 'Ocurrió un error generando el PDF. Revisa la consola.';
+    alert('Ocurrió un error generando el PDF: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = originalLabel;
+  }
+};
+
+/* ================= INIT ================= */
+setSyncBanner();
+renderClientsScreen();
+</script>
+</body>
+</html>
