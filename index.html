@@ -1076,8 +1076,17 @@ async function generatePDF(btn) {
       doc.text(`${folio} - pagina ${i - 1} de ${pageCount - 1}`, pageW - margin, pageH - 20, { align: 'right' });
     }
 
-    const safeName = (empresa + '_' + (folio || 'informe')).replace(/[^a-zA-Z0-9_-]/g, '_');
-    doc.save(`informe_fotografico_${safeName}.pdf`);
+    const cleanForFilename = (str) => (str || '')
+      .toString()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // strip accents
+      .toUpperCase()
+      .replace(/[^A-Z0-9]+/g, '')
+      .trim();
+
+    const clienteFile = cleanForFilename(report.fields.f_cliente) || 'CLIENTE';
+    const folioFile = cleanForFilename(report.fields.f_folio);
+    const safeName = folioFile ? `RDI-${clienteFile}-${folioFile}` : `RDI-${clienteFile}`;
+    doc.save(`${safeName}.pdf`);
     statusText.textContent = 'PDF generado y descargado correctamente.';
     success = true;
   } catch (err) {
