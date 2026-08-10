@@ -1023,57 +1023,46 @@ async function generatePDF(btn) {
     doc.setTextColor(...gray);
     doc.text('Documento generado como respaldo fotografico de la instalacion realizada.', margin, pageH - 40);
 
-    const cols = 3;
-    const colGap = 16;
-    const colW = (pageW - margin * 2 - colGap * (cols - 1)) / cols;
-    const boxH = colW * 0.7;
-    const captionH = 16;
-    const cardPad = 8;
-
     itemsWithPhotos.forEach((item, itemIdx) => {
-      doc.addPage();
       const title = pdfSafe(item.name) || 'Item';
 
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(9);
-      doc.setTextColor(...gray);
-      doc.text(`ITEM ${pdfSafe(item.code) || String(itemIdx + 1)}`, margin, margin - 10);
+      item.photos.forEach((photo, photoIdx) => {
+        doc.addPage();
 
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(15);
-      doc.setTextColor(...dark);
-      doc.text(title, margin, margin + 12, { maxWidth: pageW - margin * 2 });
-
-      doc.setDrawColor(...line);
-      doc.line(margin, margin + 22, pageW - margin, margin + 22);
-
-      let cy = margin + 44;
-      let col = 0;
-
-      item.photos.forEach((photo) => {
-        const x = margin + col * (colW + colGap);
-        if (cy + boxH + captionH + cardPad * 2 > pageH - margin) {
-          doc.addPage();
-          cy = margin;
-          col = 0;
-        }
-        doc.setDrawColor(...line);
-        doc.roundedRect(x, cy, colW, boxH + captionH + cardPad * 2, 3, 3, 'S');
-        try {
-          const area = fitContain(photo.width, photo.height, colW - cardPad * 2, boxH - cardPad);
-          doc.addImage(photo.dataUrl, 'JPEG', x + cardPad + area.ox, cy + cardPad + area.oy, area.w, area.h, undefined, 'FAST');
-        } catch (e) {}
+        // Header: item code/name + which photo out of how many for this item
         doc.setFont('helvetica', 'normal');
-        doc.setFontSize(8);
+        doc.setFontSize(9);
         doc.setTextColor(...gray);
-        const capText = pdfSafe(photo.caption);
-        const capLines = doc.splitTextToSize(capText, colW - cardPad * 2);
-        if (capLines[0]) doc.text(capLines[0], x + cardPad, cy + boxH + cardPad + 11);
+        const photoCounter = item.photos.length > 1 ? ` — foto ${photoIdx + 1} de ${item.photos.length}` : '';
+        doc.text(`ITEM ${pdfSafe(item.code) || String(itemIdx + 1)}${photoCounter}`, margin, margin - 10);
 
-        col++;
-        if (col >= cols) {
-          col = 0;
-          cy += boxH + captionH + cardPad * 2 + colGap;
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(15);
+        doc.setTextColor(...dark);
+        doc.text(title, margin, margin + 12, { maxWidth: pageW - margin * 2 });
+
+        doc.setDrawColor(...line);
+        doc.line(margin, margin + 22, pageW - margin, margin + 22);
+
+        // Reserve space at the bottom for an optional caption
+        const captionZone = photo.caption ? 34 : 14;
+        const imgTop = margin + 40;
+        const imgBoxW = pageW - margin * 2;
+        const imgBoxH = pageH - imgTop - margin - captionZone;
+
+        doc.setDrawColor(...line);
+        doc.roundedRect(margin, imgTop, imgBoxW, imgBoxH, 4, 4, 'S');
+        try {
+          const area = fitContain(photo.width, photo.height, imgBoxW - 12, imgBoxH - 12);
+          doc.addImage(photo.dataUrl, 'JPEG', margin + 6 + area.ox, imgTop + 6 + area.oy, area.w, area.h, undefined, 'FAST');
+        } catch (e) {}
+
+        if (photo.caption) {
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(10);
+          doc.setTextColor(...gray);
+          const capLines = doc.splitTextToSize(pdfSafe(photo.caption), imgBoxW);
+          doc.text(capLines.slice(0, 2), margin, imgTop + imgBoxH + 20);
         }
       });
     });
